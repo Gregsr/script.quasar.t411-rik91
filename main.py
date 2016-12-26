@@ -3,7 +3,7 @@ __author__ = 'rik91'
 
 import common
 import re, string, unicodedata
-import bencode, hashlib
+import bencode, hashlib, urllib
 import Queue
 from threading import Thread
 from bs4 import BeautifulSoup
@@ -73,8 +73,7 @@ def extract_torrents(data):
 
 def torrent2magnet(result, q):
     metainfo = bencode.bdecode(provider.GET(result["uri"], params={}, headers={'Authorization': token}, data=None).data)
-    result["info_hash"] = hashlib.sha1(bencode.bencode(metainfo['info'])).hexdigest()
-    result["trackers"] = [metainfo["announce"]]
+    result["uri"] = 'magnet:?xt=urn:btih:%s&dn=%s&tr=%s' % (hashlib.sha1(bencode.bencode(metainfo['info'])).hexdigest(), urllib.quote(result["name"]), urllib.quote(metainfo["announce"]))
     result["is_private"] = True
     q.put(result)
 
