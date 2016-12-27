@@ -18,7 +18,7 @@ filters = common.Filtering()
 
 # login
 username = provider.ADDON.getSetting('username')  # username
-password = provider.ADDON.getSetting('password')  # passsword
+password = provider.ADDON.getSetting('password')  # password
 resp_login = provider.POST('%s/auth' % settings.value["url_address"], params={}, headers={}, data='username=' + username + '&password=' + password)
 try:
     token = resp_login.json()['token']
@@ -72,8 +72,31 @@ def extract_torrents(data):
     return results
 
 def torrent2magnet(result, q):
-    metainfo = bencode.bdecode(provider.GET(result["uri"], params={}, headers={'Authorization': token}, data=None).data)
-    result["uri"] = 'magnet:?xt=urn:btih:%s&dn=%s&tr=%s' % (hashlib.sha1(bencode.bencode(metainfo['info'])).hexdigest(), urllib.quote(result["name"]), urllib.quote(metainfo["announce"]))
+    results = []
+    data = provider.GET(result["uri"], params={}, headers={'Authorization': token}, data=None).data
+    decoded_torrent = bencode.bdecode(data)
+    decoded_info = decoded_torrent['info']
+    encoded_info = bencode.bencode(decoded_info)
+    sha1 = hashlib.sha1(encoded_info).hexdigest()
+    results.append("xt=urn:btih:"+sha1)
+
+    if "name" in decoded_info:
+        results.append("dn="+urllib.quote(decoded_info["name"], safe=""))
+
+    trackers = []
+    if "announce-list" in decoded_torrent:
+        for urllist in decoded_torrent["announce-list"]:
+            trackers += urllist
+    elif "announce" in decoded_torrent:
+        trackers.append(decoded_torrent["announce"])
+
+    for tracker in trackers:
+        results.append("tr=%s"%urllib.quote(tracker, safe=""))
+
+    result["info_hash"] = sha1
+    result["name"] = decoded_info["name"]
+    result["trackers"] = trackers
+    result["uri"] = "magnet:?%s"%'&'.join(results)
     result["is_private"] = True
     q.put(result)
 
